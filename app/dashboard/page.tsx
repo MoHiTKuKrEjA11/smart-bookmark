@@ -16,9 +16,11 @@ export default function Dashboard() {
     const [title, setTitle] = useState("");
     const [url, setUrl] = useState("");
     const [loading, setLoading] = useState(false);
+    const [loadingBookmarks, setLoadingBookmarks] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
 
     const fetchBookmarks = async (uid: string) => {
+        setLoadingBookmarks(true);
         const { data } = await supabase
             .from("bookmarks")
             .select("*")
@@ -26,6 +28,8 @@ export default function Dashboard() {
             .order("created_at", { ascending: false });
 
         if (data) setBookmarks(data);
+
+        setLoadingBookmarks(false);
     };
 
     useEffect(() => {
@@ -167,7 +171,13 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-4">
-                    {bookmarks.length === 0 && (
+                    {loadingBookmarks && (
+                        <div className="bg-white dark:bg-neutral-900 rounded-2xl p-10 text-center text-gray-400">
+                            Loading bookmarks...
+                        </div>
+                    )}
+
+                    {!loadingBookmarks && bookmarks.length === 0 && (
                         <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-md dark:shadow-lg p-10 text-center text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-neutral-800">
                             No bookmarks yet.
                             <br />
@@ -175,32 +185,33 @@ export default function Dashboard() {
                         </div>
                     )}
 
-                    {bookmarks.map((b) => (
-                        <div
-                            key={b.id}
-                            className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm dark:shadow-md p-4 flex justify-between items-center hover:shadow-md dark:hover:shadow-lg transition border border-gray-200 dark:border-neutral-800"
-                        >
-                            <div>
-                                <a
-                                    href={b.url}
-                                    target="_blank"
-                                    className="text-gray-900 dark:text-white font-medium hover:text-orange-500 dark:hover:text-orange-400 transition"
-                                >
-                                    {b.title}
-                                </a>
-                                <p className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-xs">
-                                    {b.url}
-                                </p>
-                            </div>
-
-                            <button
-                                onClick={() => deleteBookmark(b.id)}
-                                className="text-sm text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition"
+                    {!loadingBookmarks &&
+                        bookmarks.map((b) => (
+                            <div
+                                key={b.id}
+                                className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm dark:shadow-md p-4 flex justify-between items-center hover:shadow-md dark:hover:shadow-lg transition border border-gray-200 dark:border-neutral-800"
                             >
-                                Delete
-                            </button>
-                        </div>
-                    ))}
+                                <div>
+                                    <a
+                                        href={b.url}
+                                        target="_blank"
+                                        className="text-gray-900 dark:text-white font-medium hover:text-orange-500 dark:hover:text-orange-400 transition"
+                                    >
+                                        {b.title}
+                                    </a>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-xs">
+                                        {b.url}
+                                    </p>
+                                </div>
+
+                                <button
+                                    onClick={() => deleteBookmark(b.id)}
+                                    className="text-sm text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        ))}
                 </div>
             </div>
         </div>
