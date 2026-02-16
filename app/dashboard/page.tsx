@@ -193,12 +193,16 @@ export default function Dashboard() {
                             >
                                 <div>
                                     <a
-                                        href={b.url}
+                                        href={b.url.startsWith("http://") || b.url.startsWith("https://")
+                                            ? b.url
+                                            : `https://${b.url}`}
                                         target="_blank"
+                                        rel="noopener noreferrer"
                                         className="text-gray-900 dark:text-white font-medium hover:text-orange-500 dark:hover:text-orange-400 transition"
                                     >
                                         {b.title}
                                     </a>
+
                                     <p className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-xs">
                                         {b.url}
                                     </p>
