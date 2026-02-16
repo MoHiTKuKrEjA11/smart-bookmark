@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 type Bookmark = {
     id: string
@@ -10,60 +11,108 @@ type Bookmark = {
 }
 
 export default function Dashboard() {
+    const router = useRouter()
     const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
     const [title, setTitle] = useState('')
     const [url, setUrl] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [userId, setUserId] = useState<string | null>(null)
 
     useEffect(() => {
-        fetchBookmarks()
+        const init = async () => {
+            const { data } = await supabase.auth.getUser()
 
-        const channel = supabase
-            .channel('realtime bookmarks')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'bookmarks' },
-                () => {
-                    fetchBookmarks()
-                }
-            )
-            .subscribe()
+            if (!data.user) {
+                router.push('/login')
+                return
+            }
 
-        return () => {
-            supabase.removeChannel(channel)
+            setUserId(data.user.id)
+            fetchBookmarks(data.user.id)
+
+            const channel = supabase
+                .channel('bookmarks-realtime')
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'bookmarks',
+                        filter: `user_id=eq.${data.user.id}`,
+                    },
+                    (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            setBookmarks((prev) => [payload.new as Bookmark, ...prev])
+                        }
+
+                        if (payload.eventType === 'DELETE') {
+                            setBookmarks((prev) =>
+                                prev.filter((b) => b.id !== payload.old.id)
+                            )
+                        }
+                    }
+                )
+                .subscribe()
+
+            return () => {
+                supabase.removeChannel(channel)
+            }
         }
-    }, [])
 
-    const fetchBookmarks = async () => {
+        init()
+    }, [router])
+
+    const fetchBookmarks = async (uid: string) => {
         const { data } = await supabase
             .from('bookmarks')
             .select('*')
+            .eq('user_id', uid)
             .order('created_at', { ascending: false })
 
         if (data) setBookmarks(data)
     }
 
     const addBookmark = async () => {
-        const user = await supabase.auth.getUser()
+        if (!title || !url || !userId) return
 
-        await supabase.from('bookmarks').insert([
-            {
-                title,
-                url,
-                user_id: user.data.user?.id
-            }
-        ])
+        setLoading(true)
 
-        setTitle('')
-        setUrl('')
+        const { data, error } = await supabase
+            .from('bookmarks')
+            .insert([{ title, url, user_id: userId }])
+            .select()
+            .single()
+
+        setLoading(false)
+
+        if (!error && data) {
+            setBookmarks((prev) => [data, ...prev])
+            setTitle('')
+            setUrl('')
+        }
     }
 
     const deleteBookmark = async (id: string) => {
         await supabase.from('bookmarks').delete().eq('id', id)
+        setBookmarks((prev) => prev.filter((b) => b.id !== id))
+    }
+
+    const logout = async () => {
+        await supabase.auth.signOut()
+        router.push('/')
     }
 
     return (
         <div className="p-8 max-w-xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6">My Bookmarks</h1>
+            <div className="flex justify-between mb-6">
+                <h1 className="text-2xl font-bold">My Bookmarks</h1>
+                <button
+                    onClick={logout}
+                    className="bg-red-500 text-white px-4 py-1 rounded"
+                >
+                    Logout
+                </button>
+            </div>
 
             <div className="flex gap-2 mb-6">
                 <input
@@ -80,9 +129,10 @@ export default function Dashboard() {
                 />
                 <button
                     onClick={addBookmark}
+                    disabled={loading}
                     className="bg-blue-500 text-white px-4"
                 >
-                    Add
+                    {loading ? 'Adding...' : 'Add'}
                 </button>
             </div>
 
